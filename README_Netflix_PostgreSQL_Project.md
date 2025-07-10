@@ -1,6 +1,7 @@
 
 # 📁 Netflix Data Analysis using PostgreSQL
-[NETFLIX LOGO]()
+[NETFLIX LOGO]()![logo](https://github.com/user-attachments/assets/8d060ae4-75f1-4ae1-b8f4-73c3ed651c64)
+
 ## 📋 Overview
 This project explores and analyzes the Netflix dataset using **advanced SQL queries in PostgreSQL**. The goal is to uncover meaningful business insights, understand content distribution, and segment data based on various factors like type, country, cast, genre, duration, and more.
 
