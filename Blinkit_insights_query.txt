@@ -1,0 +1,83 @@
+-- SQL Project: Blinkit City Insights
+
+-- Q.1 Setup and Join All Base Tables
+--Goal: Joining category_scraping, blinkit_city_map, and blinkit_categories
+
+CREATE TABLE blinkit_data_joined AS
+SELECT 
+cs.created_at,
+cs.l1_category_id,
+cs.l2_category_id,
+cs.selling_price,
+cs.mrp,
+cs.inventory,
+bm.store_id
+FROM category_scraping cs
+INNER JOIN blinkit_city_map bm ON
+cs.store_id=bm.store_id
+LEFT JOIN blinkit_categories bc ON 
+cs.l1_category_id=bc.l1_category_id
+AND cs.l2_category_id=bc.l2_category_id
+
+
+-- Q2. Track Inventory Movement Over Time
+--Goal: Using LEAD() to calculate next_inventory and next_timestamp for each SKU at a store.
+
+CREATE TABLE inventory_with_change AS
+SELECT
+    *,
+    LEAD(inventory) OVER (
+        PARTITION BY store_id, sku_id
+        ORDER BY created_at
+    ) AS next_inventory,
+    
+    LEAD(created_at) OVER (
+        PARTITION BY store_id, sku_id
+        ORDER BY created_at
+    ) AS next_timestamp
+FROM blinkit_data_joined;
+
+SELECT * FROM inventory_with_change
+
+
+-- Q3. Estimate Quantity Sold (est_qty_sold)
+--If inventory drops → actual sales
+--If inventory increases → restock → estimate using previous interval’s sales
+
+CREATE TABLE blinkit_with_sales AS
+SELECT
+    *,
+    CASE 
+        WHEN next_inventory IS NOT NULL AND CAST(next_inventory AS NUMERIC) < CAST(inventory AS NUMERIC) THEN
+            CAST(inventory AS NUMERIC) - CAST(next_inventory AS NUMERIC)
+        WHEN next_inventory IS NOT NULL AND CAST(next_inventory AS NUMERIC) >= CAST(inventory AS NUMERIC) THEN
+            LAG(CAST(inventory AS NUMERIC) - CAST(next_inventory AS NUMERIC)) OVER (
+                PARTITION BY store_id, sku_id
+                ORDER BY created_at
+            )
+        ELSE NULL
+    END AS est_qty_sold
+FROM inventory_with_change;
+
+SELECT * FROM blinkit_with_sales
+
+
+--Create Final Table: blinkit_city_insights
+--Goal: Aggregate estimated quantity sold at city/category level per day.
+
+CREATE TABLE blinkit_city_insights AS
+SELECT
+    created_at AS date,
+    l1_category_id,
+    l2_category_id,
+    SUM(CAST(est_qty_sold AS NUMERIC)) AS total_est_qty_sold
+FROM blinkit_with_sales
+WHERE est_qty_sold IS NOT NULL
+GROUP BY
+    created_at,
+    l1_category_id,
+    l2_category_id
+ORDER BY
+    created_at;
+
+SELECT * FROM blinkit_city_insights 
